@@ -1,0 +1,184 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+
+// Utility function for modular exponentiation
+long long power(long long x, unsigned int y, long long p) {
+    long long res = 1;
+    x = x % p;  // Update x if it is more than or equal to p
+
+    while (y > 0) {
+        if (y & 1)
+            res = (res * x) % p;
+        y = y >> 1;  // Right shift by 1 (equivalent to division by 2)
+        x = (x * x) % p;
+    }
+    return res;
+}
+
+// Function to compute gcd
+long long gcd(long long a, long long b) {
+    if (b == 0)
+        return a;
+    return gcd(b, a % b);
+}
+
+// Extended Euclidean Algorithm to find modular inverse
+long long modInverse(long long e, long long phi) {
+    long long m0 = phi, t, q;
+    long long x0 = 0, x1 = 1;
+
+    if (phi == 1)
+        return 0;
+
+    while (e > 1) {
+        q = e / phi;
+        t = phi;
+
+        // phi is remainder now, process same as Euclid's algo
+        phi = e % phi;
+        e = t;
+
+        t = x0;
+        x0 = x1 - q * x0;
+        x1 = t;
+    }
+
+    // Make x1 positive
+    if (x1 < 0)
+        x1 += m0;
+
+    return x1;
+}
+
+// Miller-Rabin primality test
+bool millerrabinTest(long long d, long long n) {
+    long long test_bases[] = {2, 3, 5, 7, 11, 13, 17, 19, 23};
+    int num_bases = sizeof(test_bases) / sizeof(test_bases[0]);
+
+    for (int i = 0; i < num_bases; i++) {
+        long long a = test_bases[i];
+        if (a >= n - 1)
+            continue;
+
+        long long x = power(a, d, n);
+
+        if (x == 1 || x == n - 1)
+            continue;
+
+        bool continueOuterLoop = false;
+        long long temp_d = d;
+
+        while (temp_d != n - 1) {
+            x = (x * x) % n;
+            temp_d *= 2;
+
+            if (x == 1)
+                return false;
+            if (x == n - 1) {
+                continueOuterLoop = true;
+                break;
+            }
+        }
+
+        if (!continueOuterLoop)
+            return false;
+    }
+
+    return true;
+}
+
+// Primality test with Miller-Rabin (k iterations for accuracy)
+bool isPrime(long long n, int k) {
+    if (n % 2 == 0 && n != 2)
+        return false;
+    if (n <= 3 && n > 1)
+        return true;
+
+    // Find r such that n = 2^d * r + 1 for some r >= 1
+    long long d = n - 1;
+    while (d % 2 == 0)
+        d /= 2;
+
+    // Iterate k times for higher accuracy
+    for (int i = 0; i < k; i++)
+        if (!millerrabinTest(d, n))
+            return false;
+
+    return true;
+}
+
+// Function to find the next prime number after a given number
+long long findNextPrime(long long n, int k) {
+    long long nextPrime = n + 1;
+    while (!isPrime(nextPrime, k)) {
+        nextPrime++;
+    }
+    return nextPrime;
+}
+
+int main() {
+    int k = 5; // Number of iterations for Miller-Rabin test
+    long long n, p, q, n_rsa, phi, e, d;
+    char message[256];
+    long long encrypted[256], decrypted[256];
+
+    printf("Enter n: ");
+    scanf("%lld", &n); // Input n from the user
+
+    if (n < 1) {
+        p = 2;
+        q = 3;
+    } else {
+        // Find the first prime number after n
+        p = findNextPrime(n, k);
+
+        // Find the second prime number after the first prime
+        q = findNextPrime(p, k);
+    }
+
+    n_rsa = p * q;
+    phi = (p - 1) * (q - 1);
+
+    // Choose e such that 1 < e < phi and gcd(e, phi) = 1
+    e = 3;
+    while (gcd(e, phi) != 1) {
+        e += 2;
+    }
+
+    d = modInverse(e, phi);
+
+    printf("p = %lld, q = %lld\n", p, q);
+    printf("n = %lld, phi = %lld\n", n_rsa, phi);
+    printf("Public key: (e = %lld, c = %lld)\n", e, n_rsa);
+    printf("Private key: (d = %lld, c = %lld)\n", d, n_rsa);
+
+    // Encrypt the message
+    printf("Enter the message to encrypt (string): ");
+    scanf("%s", message);
+
+    int len = strlen(message);
+    for (int i = 0; i < len; i++) {
+        encrypted[i] = power((long long)message[i], e, n_rsa);
+    }
+
+    printf("Encrypted message: ");
+    for (int i = 0; i < len; i++) {
+        printf("%lld ", encrypted[i]);
+    }
+    printf("\n");
+
+    // Decrypt the message
+    for (int i = 0; i < len; i++) {
+        decrypted[i] = power(encrypted[i], d, n_rsa);
+    }
+
+    printf("Decrypted message: ");
+    for (int i = 0; i < len; i++) {
+        printf("%c", (char)decrypted[i]);
+    }
+    printf("\n");
+
+    return 0;
+}
